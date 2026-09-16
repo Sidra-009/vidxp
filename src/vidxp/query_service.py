@@ -78,9 +78,21 @@ def _valid_plan(
     evidence_steps = sum(
         isinstance(step, EvidenceRequestPlanStep) for step in plan.steps
     )
+    if any(
+        step.occurrence_mode.value != "best"
+        for step in plan.steps
+        if isinstance(step, SearchMomentsPlanStep)
+    ):
+        return False
     if not temporal_relations and temporal_steps > 0:
         return False
     if not evidence_requests and evidence_steps > 0:
+        return False
+    if any(
+        step.target_modality not in search_modalities
+        for step in plan.steps
+        if isinstance(step, TemporalRelationPlanStep)
+    ):
         return False
     return (
         len(searches) == len(set(searches))

@@ -13,6 +13,7 @@ from vidxp.application_models import (
     SearchHit,
     SearchMomentsPlanStep,
     SearchResult,
+    TemporalRelationPlanStep,
 )
 from vidxp.ports import QueryProviderError
 from vidxp.query_service import GroundedQueryService
@@ -120,6 +121,82 @@ class GroundedQueryServiceTests(unittest.TestCase):
             [step.modality for step in plan.steps],
             ["scene", "speech"],
         )
+
+    def test_best_occurrence_mode_is_supported(self):
+        model = FakeQueryModel(
+            QueryPlan(
+                steps=(
+                    SearchMomentsPlanStep(
+                        modality="scene",
+                        query="taxi",
+                        occurrence_mode="best",
+                    ),
+                )
+            )
+        )
+        service = GroundedQueryService(model)
+
+        plan, reason = service.plan(
+            self.command,
+            search_modalities=("scene",),
+            actor_overview=False,
+        )
+
+        self.assertIsNone(reason)
+        self.assertEqual(plan.steps[0].occurrence_mode.value, "best")
+
+    def test_unsupported_occurrence_mode_falls_back_to_ranked_search(self):
+        for occurrence_mode in ("first", "all"):
+            model = FakeQueryModel(
+                QueryPlan(
+                    steps=(
+                        SearchMomentsPlanStep(
+                            modality="scene",
+                            query="taxi",
+                            occurrence_mode=occurrence_mode,
+                        ),
+                    )
+                )
+            )
+            service = GroundedQueryService(model)
+
+            plan, reason = service.plan(
+                self.command,
+                search_modalities=("scene",),
+                actor_overview=False,
+            )
+
+            self.assertEqual(reason, "query_plan_rejected")
+            self.assertEqual(plan.steps[0].occurrence_mode.value, "best")
+
+    def test_unknown_temporal_target_modality_falls_back(self):
+        model = FakeQueryModel(
+            QueryPlan(
+                steps=(
+                    SearchMomentsPlanStep(
+                        modality="scene",
+                        query="taxi",
+                    ),
+                    TemporalRelationPlanStep(
+                        relation="before",
+                        reference_query="taxi",
+                        target_modality="nonexistent",
+                        target_query="car",
+                    ),
+                )
+            )
+        )
+        service = GroundedQueryService(model)
+
+        plan, reason = service.plan(
+            self.command,
+            search_modalities=("scene",),
+            actor_overview=False,
+            temporal_relations=True,
+        )
+
+        self.assertEqual(reason, "query_plan_rejected")
+        self.assertEqual([step.modality for step in plan.steps], ["scene"])
 
     def test_provider_failure_uses_deterministic_retrieval_plan(self):
         service = GroundedQueryService(
