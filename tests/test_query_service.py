@@ -6,6 +6,7 @@ from vidxp.application_models import (
     FusedSearchResult,
     FusionProvenance,
     IndexSnapshotReference,
+    PlannerPlan,
     QueryAnswerMode,
     QueryModelIdentity,
     QueryPlan,
@@ -16,7 +17,7 @@ from vidxp.application_models import (
     TemporalRelationPlanStep,
 )
 from vidxp.ports import QueryProviderError
-from vidxp.query_service import GroundedQueryService
+from vidxp.query_service import GroundedQueryService, _valid_plan
 from vidxp.search_fusion import fuse_search_results
 
 
@@ -120,6 +121,31 @@ class GroundedQueryServiceTests(unittest.TestCase):
         self.assertEqual(
             [step.modality for step in plan.steps],
             ["scene", "speech"],
+        )
+
+    def test_planner_output_converts_to_a_valid_query_plan(self):
+        planned = PlannerPlan.model_validate(
+            {
+                "steps": [
+                    {
+                        "kind": "search_moments",
+                        "modality": "scene",
+                        "query": "taxi",
+                    },
+                    {"kind": "actor_overview"},
+                ]
+            }
+        )
+
+        plan = planned.to_query_plan()
+
+        self.assertIsInstance(plan, QueryPlan)
+        self.assertTrue(
+            _valid_plan(
+                plan,
+                search_modalities=("scene",),
+                actor_overview=True,
+            )
         )
 
     def test_best_occurrence_mode_is_supported(self):

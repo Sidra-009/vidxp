@@ -1177,6 +1177,34 @@ class QueryPlan(ApplicationModel):
     steps: tuple[QueryPlanStep, ...] = Field(min_length=1, max_length=8)
 
 
+class PlannerSearchMomentsStep(ApplicationModel):
+    kind: Literal["search_moments"] = "search_moments"
+    modality: Identifier
+    query: SearchQuery
+
+
+class PlannerPlan(ApplicationModel):
+    """Planner output limited to the steps query execution runs today."""
+
+    steps: tuple[
+        Annotated[
+            PlannerSearchMomentsStep | ActorOverviewPlanStep,
+            Field(discriminator="kind"),
+        ],
+        ...,
+    ] = Field(min_length=1, max_length=8)
+
+    def to_query_plan(self) -> QueryPlan:
+        return QueryPlan(
+            steps=tuple(
+                SearchMomentsPlanStep(modality=step.modality, query=step.query)
+                if isinstance(step, PlannerSearchMomentsStep)
+                else step
+                for step in self.steps
+            )
+        )
+
+
 class QueryPlanningRequest(ApplicationModel):
     question: SearchQuery
     allowed_modalities: tuple[Identifier, ...]
