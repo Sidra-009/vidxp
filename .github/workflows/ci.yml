@@ -182,6 +182,11 @@ jobs:
         run: npm run check:bundle
         working-directory: web/upload-page
 
+      - name: Test MCP App widget
+        if: needs.scope.outputs.run_suite == 'true' && matrix.python-version == '3.14'
+        run: npm test
+        working-directory: web/mcp-app
+
       - name: Test
         if: needs.scope.outputs.run_suite == 'true'
         run: uv run --no-sync python -m unittest discover -s tests -q
